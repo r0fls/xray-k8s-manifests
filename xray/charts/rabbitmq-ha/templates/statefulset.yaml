@@ -1,0 +1,147 @@
+---
+# Source: xray/charts/rabbitmq-ha/templates/statefulset.yaml
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: release-name-rabbitmq-ha
+  labels:
+    app: rabbitmq-ha
+    chart: rabbitmq-ha-1.9.1
+    release: release-name
+    heritage: Tiller
+spec:
+  serviceName: release-name-rabbitmq-ha-discovery
+  replicas: 3
+  updateStrategy:
+    type: OnDelete
+  template:
+    metadata:
+      labels:
+        app: rabbitmq-ha
+        release: release-name
+      annotations:
+        checksum/config: d030bf38252159be3a991da2a178d51847ffa49feeb25ca9595ba16e52391ab5
+    spec:
+      terminationGracePeriodSeconds: 10
+      serviceAccountName: release-name-rabbitmq-ha
+      initContainers:
+        - name: copy-rabbitmq-config
+          image: busybox
+          command: ['sh', '-c', 'cp /configmap/* /etc/rabbitmq; rm -f /var/lib/rabbitmq/.erlang.cookie']
+          resources:
+            null
+            
+          volumeMounts:
+            - name: configmap
+              mountPath: /configmap
+            - name: config
+              mountPath: /etc/rabbitmq
+            - name: data
+              mountPath: /var/lib/rabbitmq
+      containers:
+        - name: rabbitmq-ha
+          image: rabbitmq:3.7-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: epmd
+              protocol: TCP
+              containerPort: 4369
+            - name: amqp
+              protocol: TCP
+              containerPort: 5672
+            - name: http
+              protocol: TCP
+              containerPort: 15672
+          livenessProbe:
+            httpGet:
+              path: /api/healthchecks/node
+              port: 15672
+              scheme: HTTP
+              httpHeaders:
+              - name: Authorization
+                value: Basic bWFuYWdlbWVudDpFOVIzZmpabTRlakZrVkZF
+            initialDelaySeconds: 120
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /api/healthchecks/node
+              port: 15672
+              scheme: HTTP
+              httpHeaders:
+              - name: Authorization
+                value: Basic bWFuYWdlbWVudDpFOVIzZmpabTRlakZrVkZF
+            initialDelaySeconds: 10
+            timeoutSeconds: 3
+            periodSeconds: 5
+            failureThreshold: 6
+          env:
+            - name: MY_POD_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
+            - name: RABBITMQ_USE_LONGNAME
+              value: "true"
+            - name: RABBITMQ_NODENAME
+              value: rabbit@$(MY_POD_NAME).release-name-rabbitmq-ha-discovery.xray.svc.cluster.local
+            - name: K8S_HOSTNAME_SUFFIX
+              value: .release-name-rabbitmq-ha-discovery.xray.svc.cluster.local
+            - name: K8S_SERVICE_NAME
+              value: release-name-rabbitmq-ha-discovery
+            - name: RABBITMQ_ERLANG_COOKIE
+              valueFrom:
+                secretKeyRef:
+                  name: release-name-rabbitmq-ha
+                  key: rabbitmq-erlang-cookie
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/rabbitmq
+            - name: config
+              mountPath: /etc/rabbitmq
+              readOnly: true
+            - name: definitions
+              mountPath: /etc/definitions
+              readOnly: true
+        
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 1
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: rabbitmq-ha
+                    release: release-name
+      volumes:
+        - name: config
+          emptyDir: {}
+        - name: configmap
+          configMap:
+            name: release-name-rabbitmq-ha
+        - name: definitions
+          secret:
+            secretName: release-name-rabbitmq-ha
+            items:
+            - key: definitions.json
+              path: definitions.json
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        annotations:
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: "20Gi"

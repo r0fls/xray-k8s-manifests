@@ -1,0 +1,23 @@
+---
+# Source: xray/templates/xray-persist-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: release-name-xray-persist
+  labels:
+    app: xray
+    chart: xray-0.8.1
+    component: xray-persist
+    heritage: Tiller
+    release: release-name
+spec:
+  type: ClusterIP
+  ports:
+  - port: 7003
+    protocol: TCP
+    name: http
+    targetPort: 7003
+  selector:
+    app: xray
+    component: xray-persist
+    release: release-name

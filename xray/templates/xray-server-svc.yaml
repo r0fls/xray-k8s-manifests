@@ -1,0 +1,23 @@
+---
+# Source: xray/templates/xray-server-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: release-name-xray-server
+  labels:
+    app: xray
+    chart: xray-0.8.1
+    component: xray-server
+    heritage: Tiller
+    release: release-name
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    protocol: TCP
+    name: http
+    targetPort: 8000
+  selector:
+    app: xray
+    component: xray-server
+    release: release-name

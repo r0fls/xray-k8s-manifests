@@ -1,0 +1,81 @@
+---
+# Source: xray/charts/mongodb/templates/deployment.yaml
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: release-name-mongodb
+  labels:
+    app: mongodb
+    chart: "mongodb-2.0.5"
+    release: "release-name"
+    heritage: "Tiller"
+spec:
+  template:
+    metadata:
+      labels:
+        app: mongodb
+        release: "release-name"
+    spec:
+      containers:
+      - name: release-name-mongodb
+        image: docker.io/bitnami/mongodb:3.6.3
+        imagePullPolicy: "IfNotPresent"
+        env:
+        - name: MONGODB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: release-name-mongodb
+              key: mongodb-root-password
+        - name: MONGODB_USERNAME
+          value: "xray"
+        - name: MONGODB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: release-name-mongodb
+              key: mongodb-password
+        - name: MONGODB_DATABASE
+          value: "xray"
+        - name: MONGODB_EXTRA_FLAGS
+          value: --wiredTigerCacheSizeGB=5
+        ports:
+        - name: mongodb
+          containerPort: 27017
+        livenessProbe:
+          exec:
+            command:
+            - mongo
+            - --eval
+            - "db.adminCommand('ping')"
+          failureThreshold: 6
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+          
+        readinessProbe:
+          exec:
+            command:
+            - mongo
+            - --eval
+            - "db.adminCommand('ping')"
+          failureThreshold: 6
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+          
+        volumeMounts:
+        - name: data
+          mountPath: /bitnami/mongodb
+        resources:
+          limits:
+            cpu: "2"
+            memory: 10Gi
+          requests:
+            cpu: 500m
+            memory: 10Gi
+          
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: release-name-mongodb

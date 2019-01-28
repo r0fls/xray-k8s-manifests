@@ -1,0 +1,75 @@
+---
+# Source: xray/templates/xray-setup-conf.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: release-name-xray-setup
+  labels:
+    app: xray
+    chart: xray-0.8.1
+    heritage: Tiller
+    release: release-name
+data:
+  setup.sh: |
+    #!/bin/sh
+    # Setup script for Xray microservice
+
+    SCRIPTS_DIR=/scripts
+    XRAYCONFIGPATH=/var/opt/jfrog/xray/data
+    XRAY_CONFIG_DIR=${XRAYCONFIGPATH}/config
+    XRAY_CONFIG_FILE=${XRAY_CONFIG_DIR}/xray_config.yaml
+
+    echo "Creating directories"
+    mkdir -pv ${XRAY_CONFIG_DIR}
+
+    # Wait for DBs to be ready
+    echo "Waiting for Mongo..."
+    until nc -z -w 2 release-name-mongodb 27017 && echo mongodb ok; do
+      sleep 2;
+    done;
+    echo "Waiting for Postgres..."
+    until nc -z -w 2 release-name-postgresql 5432 && echo postgresql ok; do
+      sleep 2;
+    done;
+    echo "Waiting for Rabbit..."
+    
+    until nc -z -w 2 release-name-rabbitmq-ha 5672 && echo rabbitmq ok; do
+    
+      sleep 2;
+    done;
+
+    # Prepare Xray config
+    echo "Preparing Xray config (${XRAY_CONFIG_FILE})"
+    if [ -f ${XRAY_CONFIG_FILE} ]; then
+      echo "Config exist. Backing it up..."
+      cp -vf ${XRAY_CONFIG_FILE} ${XRAY_CONFIG_FILE}-$(date +%Y%m%d-%H%M%S)
+    fi
+
+    # Creating Mongodb URL
+    MONGODB_URL="mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@release-name-mongodb:27017/?authSource=${MONGODB_DATABASE}\&authMechanism=SCRAM-SHA-1"
+
+    # Creating PostgreSQL URL
+    POSTGRES_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@release-name-postgresql:5432/${POSTGRES_DB}?sslmode=disable"
+
+    # Creating Rabbitmq URL
+    
+    RABBITMQ_URL="amqp://${RABBITMQ_USER}:${RABBITMQ_DEFAULT_PASS}@release-name-rabbitmq-ha:5672/"
+    
+    cp -vf ${SCRIPTS_DIR}/xray_config.yaml ${XRAY_CONFIG_FILE}
+
+    # Preparing xray_config.yaml
+    sed -i "s RABBITMQ_URL ${RABBITMQ_URL} " ${XRAY_CONFIG_FILE}
+    sed -i "s MONGODB_URL ${MONGODB_URL} " ${XRAY_CONFIG_FILE}
+    sed -i "s POSTGRES_URL ${POSTGRES_URL} " ${XRAY_CONFIG_FILE}
+
+  xray_config.yaml: |
+    # Generated Xray config
+    ---
+        ver:            1.0
+        XrayServerPort: "8000"
+        mqBaseUrl:      "RABBITMQ_URL"
+        mongoUrl:       "MONGODB_URL"
+        postgresqlUrl:  "POSTGRES_URL"
+        stdOutEnabled:  true
+        skipEntLicCheckForCloud: true
+    # End generated config

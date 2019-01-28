@@ -1,0 +1,130 @@
+---
+# Source: xray/templates/xray-indexer-deployment.yaml
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: release-name-xray-indexer
+  labels:
+    app: xray
+    chart: xray-0.8.1
+    heritage: Tiller
+    release: release-name
+    component: xray-indexer
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: xray
+      release: release-name
+      component: xray-indexer
+  template:
+    metadata:
+      labels:
+        app: xray
+        release: release-name
+        component: xray-indexer
+    spec:
+      serviceAccountName: release-name-xray
+      securityContext:
+        runAsUser: 1035
+        fsGroup: 1035
+      initContainers:
+      - name: init-wait
+        image: "alpine:3.8"
+        env:
+        - name: MONGODB_USER
+          value: xray
+        - name: MONGODB_DATABASE
+          value: xray
+        - name: MONGODB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: release-name-mongodb
+              key: mongodb-password
+        - name: POSTGRES_USER
+          value: xray
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: release-name-postgresql
+              key: postgres-password
+        - name: POSTGRES_DB
+          value: xraydb
+        - name: RABBITMQ_USER
+          value: guest
+        - name: RABBITMQ_ERLANG_COOKIE
+          valueFrom:
+            secretKeyRef:
+              name: release-name-rabbitmq-ha
+              key: rabbitmq-erlang-cookie
+        - name: RABBITMQ_DEFAULT_PASS
+          valueFrom:
+            secretKeyRef:
+              name: release-name-rabbitmq-ha
+              key: rabbitmq-password
+        command:
+        - '/bin/sh'
+        - '-c'
+        - >
+          cp -fv /scripts/setup.sh /var/opt/jfrog/xray/data;
+          chmod +x /var/opt/jfrog/xray/data/setup.sh;
+          /var/opt/jfrog/xray/data/setup.sh;
+        volumeMounts:
+        - name: data-volume
+          mountPath: "/var/opt/jfrog/xray/data"
+        - name: setup
+          mountPath: "/scripts"
+      containers:
+      - name: xray-indexer
+        image: docker.bintray.io/jfrog/xray-indexer:2.6.0
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: XRAYCONFIGPATH
+          value: "/var/opt/jfrog/xray/data"
+        - name: XRAY_MASTER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: release-name-xray-master-key
+              key: master-key
+        - name: XRAY_HA_NODE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        ports:
+        - containerPort: 7002
+        volumeMounts:
+        - name: data-volume
+          mountPath: "/var/opt/jfrog/xray/data"
+        securityContext:
+          allowPrivilegeEscalation: false
+        resources:
+          limits:
+            cpu: "1"
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          
+        readinessProbe:
+          httpGet:
+            path: /debug/pprof/
+            port: 7002
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          failureThreshold: 10
+        livenessProbe:
+          httpGet:
+            path: /debug/pprof/
+            port: 7002
+          initialDelaySeconds: 90
+          periodSeconds: 10
+      volumes:
+      - name: data-volume
+        emptyDir:
+          sizeLimit: 10Gi
+      - name: config-volume
+        emptyDir:
+          sizeLimit: 1Gi
+      - name: setup
+        configMap:
+          name: release-name-xray-setup

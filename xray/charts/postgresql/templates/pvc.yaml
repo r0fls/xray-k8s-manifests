@@ -1,0 +1,17 @@
+---
+# Source: xray/charts/postgresql/templates/pvc.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: release-name-postgresql
+  labels:
+    app: release-name-postgresql
+    chart: "postgresql-0.9.5"
+    release: "release-name"
+    heritage: "Tiller"
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "50Gi"

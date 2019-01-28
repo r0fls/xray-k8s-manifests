@@ -1,0 +1,20 @@
+---
+# Source: xray/charts/mongodb/templates/svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: release-name-mongodb
+  labels:
+    app: mongodb
+    chart: "mongodb-2.0.5"
+    release: "release-name"
+    heritage: "Tiller"
+spec:
+  type: ClusterIP
+  ports:
+  - name: mongodb
+    port: 27017
+    targetPort: mongodb
+  selector:
+    app: mongodb
+    release: "release-name"

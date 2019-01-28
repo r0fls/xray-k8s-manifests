@@ -1,0 +1,15 @@
+---
+# Source: xray/templates/xray-master-key.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: release-name-xray-master-key
+  labels:
+    app: xray
+    chart: xray-0.8.1
+    heritage: Tiller
+    release: release-name
+type: Opaque
+data:
+  master-key: "RkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRg=="
+
